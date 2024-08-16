@@ -1,6 +1,7 @@
 const player = "p";
 const bullet = "b";
 const background = "g";
+const obstacle = "o";
 
 setLegend(
   [player, bitmap`
@@ -21,21 +22,39 @@ setLegend(
 ................
 ................`],
   [bullet, bitmap`
-..............
-....11........
-....11........
-..............
-..............
-..............
-..............
-..............
-..............
-..............
-..............
-..............
-..............
-..............
-..............`],
+................
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+.LLLLLLLLLLLLLL.
+................`],
+  [obstacle, bitmap`
+................
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+..CCCCCCCCCCCC..
+................
+................`],
   [background, bitmap`
 4444444444444444
 4444444444444444
@@ -56,17 +75,18 @@ setLegend(
 );
 
 setBackground(background);
+
 const level = map`
 ................
 ................
 ................
-................
-................
-................
+...ooooo........
+...o............
+...o............
 ........p.......
 ................
 ................
-................
+...ooooo........
 ................
 ................
 ................
@@ -74,7 +94,7 @@ const level = map`
 ................`;
 setMap(level);
 
-setSolids([player, bullet]);
+setSolids([player, bullet, obstacle]);
 
 let gameOver = false;
 let gameStarted = false;
@@ -94,15 +114,24 @@ function showStartScreen() {
   addText("Press I to start", { x: 2, y: 14, color: color`3` });
 }
 
+function instructions() {
+  clearText();
+  addText("Use DSAW to move", { x: 2, y: 1, color: color`3` })
+}
+
 function hideStartScreen() {
   clearText();
 }
 
 function createBullet() {
   if (!gameOver && gameStarted) {
-    const x = Math.floor(Math.random() * width());
+    const x = 0;
     const y = Math.floor(Math.random() * height());
-    if (x !== getFirst(player).x && y !== getFirst(player).y) {
+
+    // Ensure the bullet doesn't spawn in an obstacle
+    const obstacleAtSpawn = getTile(x, y).find(s => s.type === obstacle);
+
+    if (!obstacleAtSpawn && x !== getFirst(player).x && y !== getFirst(player).y) {
       addSprite(x, y, bullet);
     }
   }
@@ -111,10 +140,11 @@ function createBullet() {
 function moveBullets() {
   if (!gameOver && gameStarted) {
     getAll(bullet).forEach(b => {
-      b.x += Math.floor(Math.random() * 5) - 2;
-      b.y += Math.floor(Math.random() * 5) - 2;
-
-      if (b.x < 0 || b.x >= width() || b.y < 0 || b.y >= height()) {
+      
+      const nextTile = getTile(b.x + 1, b.y);
+      if (b.x < width() - 1 && !nextTile.some(t => t.type === obstacle)) {
+        b.x += 1;
+      } else {
         b.remove();
       }
     });
@@ -126,9 +156,8 @@ function checkCollisions() {
   
   if (p) {
     getAll(bullet).forEach(b => {
-      if (p.x < b.x + 8 &&
-          p.x + 8 > b.x &&
-          p.y === b.y - 8) {
+      if (p.x - b.x == 1 &&
+          p.y == b.y) {
         gameOver = true;
         addText("Game Over!", { x: 2, y: 5, color: color`3` });
         addText(`Survived Steps: ${stepsSurvived}`, { x: 2, y: 7, color: color`3` });
@@ -142,37 +171,52 @@ function checkCollisions() {
 
 onInput("w", () => {
   const p = getFirst(player);
-  if (p && p.y > 0 && !gameOver && gameStarted) {
-    p.y += 1;
-    stepsSurvived += 1;
+  if (!gameOver && gameStarted && p.y < height() - 1) {
+    const nextTile = getTile(p.x, p.y + 1);
+    if (!nextTile.some(t => t.type === obstacle)) {
+      p.y += 1;
+      stepsSurvived += 1;
+    }
   }
 });
+
 onInput("s", () => {
   const p = getFirst(player);
-  if (p && p.y < height() - 1 && !gameOver && gameStarted) {
-    p.y -= 1;
-    stepsSurvived += 1;
+  if (!gameOver && gameStarted && p.y > 0) {
+    const nextTile = getTile(p.x, p.y - 1);
+    if (!nextTile.some(t => t.type === obstacle)) {
+      p.y -= 1;
+      stepsSurvived += 1;
+    }
   }
 });
+
 onInput("a", () => {
   const p = getFirst(player);
-  if (p && p.x > 0 && !gameOver && gameStarted) {
-    p.x += 1;
-    stepsSurvived += 1;
+  if (!gameOver && gameStarted && p.x > 0) {
+    const nextTile = getTile(p.x - 1, p.y);
+    if (!nextTile.some(t => t.type === obstacle)) {
+      p.x -= 1;
+      stepsSurvived += 1;
+    }
   }
 });
+
 onInput("d", () => {
   const p = getFirst(player);
-  if (p && p.x < width() - 1 && !gameOver && gameStarted) {
-    p.x -= 1;
-    stepsSurvived += 1;
+  if (!gameOver && gameStarted && p.x < width() - 1) {
+    const nextTile = getTile(p.x + 1, p.y);
+    if (!nextTile.some(t => t.type === obstacle)) {
+      p.x += 1;
+      stepsSurvived += 1;
+    }
   }
 });
+
 onInput("j", () => {
-  if (gameOver) {
     location.reload();
-  }
 });
+
 onInput("i", () => {
   if (!gameStarted) {
     gameStarted = true;
@@ -184,9 +228,11 @@ afterInput(() => {
   if (!gameOver && gameStarted) {
     moveBullets();
     checkCollisions();
+    createBullet();
+    addText(`${stepsSurvived}`, { x: 2, y: 1, color: color`3` });
   }
 });
 
-setInterval(createBullet, 1000);
+setInterval(createBullet, 300);
 
 showStartScreen();
