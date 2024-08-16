@@ -2,6 +2,7 @@ const player = "p";
 const bullet = "b";
 const background = "g";
 const obstacle = "o";
+const abilityIndicator = "a";
 
 setLegend(
   [player, bitmap`
@@ -55,6 +56,23 @@ setLegend(
 ..CCCCCCCCCCCC..
 ................
 ................`],
+  [abilityIndicator, bitmap`
+................
+............666.
+....DDDD...66666
+...DDDDDD..66666
+...DDDDDD9966666
+...DDDDDD9966666
+...DDDDDD9966666
+....DDDD9999666.
+.....999999999..
+....FFF99977777.
+...FFFFF97777777
+...FFFFF97777777
+...FFFFF97777777
+...FFFFF.7777777
+...FFFFF..77777.
+....FFF.........`],
   [background, bitmap`
 4444444444444444
 4444444444444444
@@ -99,6 +117,8 @@ setSolids([player, bullet, obstacle]);
 let gameOver = false;
 let gameStarted = false;
 let stepsSurvived = 0;
+let abilityAvailable = false;
+let instruct = false;
 
 function showStartScreen() {
   addText("Your name is", { x: 2, y: 1, color: color`3` });
@@ -116,10 +136,24 @@ function showStartScreen() {
 
 function instructions() {
   clearText();
-  addText("Use DSAW to move", { x: 2, y: 1, color: color`3` })
+  addText("Use DSAW to move", { x: 2, y: 1, color: color`3` });
+  addText("When you see a", { x: 2, y: 2, color: color`3` });
+  addText("colurful icon", { x: 2, y: 4, color: color`3` });
+  addText("in the top right,", { x: 2, y: 5, color: color`3` });
+  addText("you can press k", { x: 2, y: 6, color: color`3` });
+  addText("to launch bavarium", { x: 2, y: 8, color: color`3` });
+  addText("nuke, destroying", { x: 2, y: 9, color: color`3` });
+  addText("the brown obstacle", { x: 2, y: 10, color: color`3` });
+  addText("It recharges every", { x: 2, y: 11, color: color`3` });
+  addText("20 points!", { x: 2, y: 12, color: color`3` });
+  addText("Good Luck (i)", { x: 2, y: 14, color: color`3` });
 }
 
 function hideStartScreen() {
+  clearText();
+  instructions()
+}
+function hideInstructions() {
   clearText();
 }
 
@@ -128,10 +162,9 @@ function createBullet() {
     const x = 0;
     const y = Math.floor(Math.random() * height());
 
-    // Ensure the bullet doesn't spawn in an obstacle
     const obstacleAtSpawn = getTile(x, y).find(s => s.type === obstacle);
 
-    if (!obstacleAtSpawn && x !== getFirst(player).x && y !== getFirst(player).y) {
+    if (!obstacleAtSpawn && x !== getFirst(player).x) {
       addSprite(x, y, bullet);
     }
   }
@@ -151,6 +184,35 @@ function moveBullets() {
   }
 }
 
+function moveObstacles() {
+  if (!gameOver && gameStarted) {
+    getAll(obstacle).forEach(o => {
+      const direction = Math.floor(Math.random() * 4);
+      let newX = o.x;
+      let newY = o.y;
+
+      if (direction === 0 && o.x > 0) { // Left
+        newX -= 1;
+      } else if (direction === 1 && o.x < width() - 1) { // Right
+        newX += 1;
+      } else if (direction === 2 && o.y > 0) { // Up
+        newY -= 1;
+      } else if (direction === 3 && o.y < height() - 1) { // Down
+        newY += 1;
+      }
+
+      const obstacleAtNewPosition = getTile(newX, newY).some(t => t.type === obstacle);
+      const bulletAtNewPosition = getTile(newX, newY).some(t => t.type === bullet);
+      const playerAtNewPosition = getTile(newX, newY).some(t => t.type === player);
+
+      if (!obstacleAtNewPosition && !bulletAtNewPosition && !playerAtNewPosition) {
+        o.x = newX;
+        o.y = newY;
+      }
+    });
+  }
+}
+
 function checkCollisions() {
   const p = getFirst(player);
   
@@ -160,13 +222,48 @@ function checkCollisions() {
           p.y == b.y) {
         gameOver = true;
         addText("Game Over!", { x: 2, y: 5, color: color`3` });
-        addText(`Survived Steps: ${stepsSurvived}`, { x: 2, y: 7, color: color`3` });
+        addText(`Score: ${stepsSurvived}`, { x: 2, y: 7, color: color`3` });
         addText("Press J to restart", { x: 2, y: 9, color: color`3` });
         getAll(bullet).forEach(b => b.remove());
         setInterval(() => {}, 1000);
       }
     });
   }
+}
+
+function destroyObstacle() {
+  if (abilityAvailable && !gameOver && gameStarted) {
+    const p = getFirst(player);
+    const obstacles = getAll(obstacle);
+
+    if (obstacles.length > 0) {
+      // Find the nearest obstacle to the player
+      let nearestObstacle = obstacles[0];
+      let nearestDistance = Math.abs(nearestObstacle.x - p.x) + Math.abs(nearestObstacle.y - p.y);
+
+      obstacles.forEach(o => {
+        const distance = Math.abs(o.x - p.x) + Math.abs(o.y - p.y);
+        if (distance < nearestDistance) {
+          nearestObstacle = o;
+          nearestDistance = distance;
+        }
+      });
+
+      nearestObstacle.remove();
+      abilityAvailable = false;
+      clearAbilityIndicator();
+    }
+  }
+}
+
+function showAbilityIndicator() {
+  if (!gameOver && gameStarted) {
+    addSprite(15, 0, abilityIndicator);
+  }
+}
+
+function clearAbilityIndicator() {
+  getAll(abilityIndicator).forEach(a => a.remove());
 }
 
 onInput("w", () => {
@@ -193,10 +290,10 @@ onInput("s", () => {
 
 onInput("a", () => {
   const p = getFirst(player);
-  if (!gameOver && gameStarted && p.x > 0) {
+  if (!gameOver && gameStarted ) {
     const nextTile = getTile(p.x - 1, p.y);
     if (!nextTile.some(t => t.type === obstacle)) {
-      p.x -= 1;
+      p.x += 1;
       stepsSurvived += 1;
     }
   }
@@ -204,13 +301,17 @@ onInput("a", () => {
 
 onInput("d", () => {
   const p = getFirst(player);
-  if (!gameOver && gameStarted && p.x < width() - 1) {
+  if (!gameOver && gameStarted) {
     const nextTile = getTile(p.x + 1, p.y);
     if (!nextTile.some(t => t.type === obstacle)) {
-      p.x += 1;
+      p.x -= 1;
       stepsSurvived += 1;
     }
   }
+});
+
+onInput("k", () => {
+  destroyObstacle();
 });
 
 onInput("j", () => {
@@ -221,6 +322,14 @@ onInput("i", () => {
   if (!gameStarted) {
     gameStarted = true;
     hideStartScreen();
+    instructions()
+  }
+  else {
+    if (!instruct) {
+      instruct = true;
+      hideInstructions()
+    
+  }
   }
 });
 
@@ -229,6 +338,11 @@ afterInput(() => {
     moveBullets();
     checkCollisions();
     createBullet();
+    moveObstacles();
+    if (stepsSurvived >= 20 && !abilityAvailable) {
+      abilityAvailable = true;
+      showAbilityIndicator();
+    }
     addText(`${stepsSurvived}`, { x: 2, y: 1, color: color`3` });
   }
 });
