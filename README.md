@@ -12,4 +12,4 @@ D - Front
 I - Start
 J - Restart
 
-Sprig link: https://sprig.hackclub.com/share/oIktYm0lytjaKop2l3NT
+Sprig link: [https://sprig.hackclub.com/share/oIktYm0lytjaKop2l3NT](https://sprig.hackclub.com/share/03Abxi932DcExfolzkY7)
